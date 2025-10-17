@@ -1,8 +1,24 @@
 #!/usr/bin/env python3
-from evdev import InputDevice, ecodes as e
+from evdev import InputDevice, list_devices, ecodes as e
 
-DEVICE_PATH='/dev/input/event23'    
-dev = InputDevice(DEVICE_PATH)
+def find_device_by_name(target_name):
+    for path in list_devices():
+        device = InputDevice(path)
+        if target_name.lower() in device.name.lower():
+            print(f"✅ Found device: {device.name} at {path}")
+            return path
+    print(f"❌ Device '{target_name}' not found.")
+    return None
+
+# Example usage
+DEVICE_NAME = "Beauty-R1"
+DEVICE_PATH = find_device_by_name(DEVICE_NAME)
+
+if DEVICE_PATH:
+    dev = InputDevice(DEVICE_PATH)
+else:
+    print("Exiting — device not found.")
+    exit(1)
 
 REL_TO_KEY = {
     77: "TOP",
