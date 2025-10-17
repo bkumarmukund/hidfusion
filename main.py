@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
+import os
 from evdev import InputDevice, list_devices, ecodes as e
+import importlib
 
 def find_device_by_name(target_name):
     for path in list_devices():
@@ -10,7 +12,11 @@ def find_device_by_name(target_name):
     print(f"❌ Device '{target_name}' not found.")
     return None
 
-# Example usage
+# --- Load profile dynamically ---
+profile_name = os.getenv("BEAUTY_PROFILE", "default_profile")
+profile_module = importlib.import_module(f"profiles.{profile_name}")
+
+# --- Device setup ---
 DEVICE_NAME = "Beauty-R1"
 DEVICE_PATH = find_device_by_name(DEVICE_NAME)
 
@@ -31,23 +37,13 @@ REL_TO_KEY = {
 
 last_identified = None
 
-def press_f9():
-    ui.write(e.EV_KEY, e.KEY_F9, 1)
-    ui.write(e.EV_KEY, e.KEY_F9, 0)
-    ui.syn()
-    
-def press_enter():
-    ui.write(e.EV_KEY, e.KEY_ENTER, 1)  # key press
-    ui.write(e.EV_KEY, e.KEY_ENTER, 0)  # key release
-    ui.syn()
-
 button_actions = {
-    "TOP": lambda: print("TOP pressed"),
-    "LEFT": lambda: print("LEFT pressed"),
-    "BOTTOM": lambda: print("BOTTOM pressed"),
-    "RIGHT": lambda: print("RIGHT pressed"),
-    "MIDDLE": lambda: print("MIDDLE pressed"),
-    "CAMERA": lambda: print("CAMERA pressed")
+    "TOP": getattr(profile_module, "top_click"),
+    "LEFT": getattr(profile_module, "left_click"),
+    "BOTTOM": getattr(profile_module, "bottom_click"),
+    "RIGHT": getattr(profile_module, "right_click"),
+    "MIDDLE": getattr(profile_module, "middle_click"),
+    "CAMERA": getattr(profile_module, "camera_click")
 }
 
 for event in dev.read_loop():
