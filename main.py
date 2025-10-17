@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
-from evdev import InputDevice, list_devices, ecodes as e
+import os
+from evdev import UInput, InputDevice, list_devices, ecodes as e
+import importlib
+
+# create a single UInput instance
+ui = UInput()
 
 def find_device_by_name(target_name):
     for path in list_devices():
@@ -10,7 +15,15 @@ def find_device_by_name(target_name):
     print(f"❌ Device '{target_name}' not found.")
     return None
 
-# Example usage
+# --- Load profile dynamically ---
+profile_name = os.getenv("BEAUTY_PROFILE", "default")
+try:
+    profile_module = importlib.import_module(f"profiles.{profile_name}")
+except ModuleNotFoundError:
+    print(f"❌ Profile '{profile_name}' not found. Falling back to default_profile.")
+    profile_module = importlib.import_module("profiles.default_profile")
+
+# --- Device setup ---
 DEVICE_NAME = "Beauty-R1"
 DEVICE_PATH = find_device_by_name(DEVICE_NAME)
 
@@ -31,30 +44,26 @@ REL_TO_KEY = {
 
 last_identified = None
 
-def press_f9():
-    ui.write(e.EV_KEY, e.KEY_F9, 1)
-    ui.write(e.EV_KEY, e.KEY_F9, 0)
-    ui.syn()
-    
-def press_enter():
-    ui.write(e.EV_KEY, e.KEY_ENTER, 1)  # key press
-    ui.write(e.EV_KEY, e.KEY_ENTER, 0)  # key release
-    ui.syn()
-
+# Map button names to profile functions, passing ui
 button_actions = {
-    "TOP": lambda: print("TOP pressed"),
-    "LEFT": lambda: print("LEFT pressed"),
-    "BOTTOM": lambda: print("BOTTOM pressed"),
-    "RIGHT": lambda: print("RIGHT pressed"),
-    "MIDDLE": lambda: print("MIDDLE pressed"),
-    "CAMERA": lambda: print("CAMERA pressed")
+    "TOP": lambda: profile_module.top_click(ui),
+    "LEFT": lambda: profile_module.left_click(ui),
+    "BOTTOM": lambda: profile_module.bottom_click(ui),
+    "RIGHT": lambda: profile_module.right_click(ui),
+    "MIDDLE": lambda: profile_module.middle_click(ui),
+    "CAMERA": lambda: profile_module.camera_click(ui)
 }
+try:
+    for event in dev.read_loop():
+        if event.type == e.EV_REL:
+            key_name = REL_TO_KEY.get(event.value)
+            if key_name in button_actions and key_name != last_identified:
+                button_actions[key_name]()
+                last_identified = key_name
+        elif event.type == e.EV_KEY and event.code == e.BTN_LEFT:
+            last_identified = None
 
-for event in dev.read_loop():
-    if event.type == e.EV_REL:
-        key_name = REL_TO_KEY.get(event.value)
-        if key_name in button_actions and key_name != last_identified:
-            button_actions[key_name]()
-            last_identified = key_name
-    elif event.type == e.EV_KEY and event.code == e.BTN_LEFT:
-        last_identified = None
+except KeyboardInterrupt:
+    print("\nExiting… cleaning up.")
+    ui.close()  # close the virtual input device
+    dev.close()  # close the input device
